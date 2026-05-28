@@ -1,0 +1,26 @@
+[
+  {
+    "id": 1,
+    "mensaje": "Nueva promocion disponible en tu categoria favorita",
+    "fecha": "2026-04-05T08:00:00",
+    "t_notificacion": "action_receiver"
+  },
+  {
+    "id": 2,
+    "mensaje": "Tu promocion ha sido aprobada",
+    "fecha": "2026-04-04T15:30:00",
+    "t_notificacion": "action_executer"
+  },
+  {
+    "id": 3,
+    "mensaje": "Se detecto una nueva oferta cerca de ti",
+    "fecha": "2026-04-11T07:45:00",
+    "t_notificacion": "action_receiver"
+  },
+  {
+    "id": 4,
+    "mensaje": "Revision de reporte completada",
+    "fecha": "2026-04-12T18:00:00",
+    "t_notificacion": "action_controller"
+  }
+]

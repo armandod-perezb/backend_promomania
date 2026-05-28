@@ -1,0 +1,128 @@
+# Quiero que generes una implementación completa de endpoints CRUD reutilizables
+# en Django REST Framework, incluyendo serializers, evitando repetir código.
+
+# 📌 Contexto del proyecto:
+# - Ya existen los modelos en cada app (NO generarlos)
+# - NO existen serializers (hay que crearlos)
+# - Cada app debe tener: serializers.py, views.py y urls.py
+# - Usar Django REST Framework
+
+# 📌 Apps del proyecto:
+# usuario
+# categoria
+# supermercado
+# promocion
+# comentario
+# favorito
+# reporte
+# notificacion
+
+# ================================
+# 🧩 1. SERIALIZERS
+# ================================
+
+# Para cada app, crear un archivo serializers.py con un ModelSerializer:
+
+# Ejemplo esperado (usuario):
+
+# from rest_framework import serializers
+# from .models import Usuario
+
+# class UsuarioSerializer(serializers.ModelSerializer):
+#     class Meta:
+#         model = Usuario
+#         fields = '__all__'
+
+# Repetir esto para cada app usando su modelo correspondiente
+
+# ================================
+# 🧩 2. CLASES BASE REUTILIZABLES
+# ================================
+
+# Crear un archivo reutilizable (ej: core/views.py o utils/crud.py)
+# con las siguientes clases:
+
+# - BaseCRUDView
+# - CreateView (POST)
+# - ListView (GET)
+# - DetailView (GET por id)
+# - UpdateView (PUT/PATCH usando id en request.data)
+# - DeleteView (DELETE usando id en request.data)
+
+# Requisitos:
+# - Usar APIView
+# - Recibir "model" y "serializer_class"
+# - Manejar errores (404 si no existe)
+# - Usar Response y status de DRF
+# - Código limpio y reutilizable
+
+# ================================
+# 🧩 3. VIEWS POR APP
+# ================================
+
+# Para cada app, crear views.py usando herencia:
+
+# Ejemplo esperado:
+
+# from core.views import CreateView, ListView, DetailView, UpdateView, DeleteView
+# from .models import Usuario
+# from .serializers import UsuarioSerializer
+
+# class UsuarioCreateView(CreateView):
+#     model = Usuario
+#     serializer_class = UsuarioSerializer
+
+# class UsuarioListView(ListView):
+#     model = Usuario
+#     serializer_class = UsuarioSerializer
+
+# class UsuarioDetailView(DetailView):
+#     model = Usuario
+#     serializer_class = UsuarioSerializer
+
+# class UsuarioUpdateView(UpdateView):
+#     model = Usuario
+#     serializer_class = UsuarioSerializer
+
+# class UsuarioDeleteView(DeleteView):
+#     model = Usuario
+#     serializer_class = UsuarioSerializer
+
+# Repetir esto para cada app
+
+# ================================
+# 🌐 4. URLS POR APP
+# ================================
+
+# Crear urls.py en cada app con esta estructura:
+
+# from django.urls import path
+# from .views import *
+
+# urlpatterns = [
+#     path('', <Entidad>CreateView.as_view()),
+#     path('list/', <Entidad>ListView.as_view()),
+#     path('<int:id>/', <Entidad>DetailView.as_view()),
+#     path('update/', <Entidad>UpdateView.as_view()),
+#     path('delete/', <Entidad>DeleteView.as_view()),
+# ]
+
+# ================================
+# 🚨 REGLAS IMPORTANTES
+# ================================
+
+# - NO generar models.py
+# - NO repetir lógica CRUD en cada app
+# - Centralizar lógica en clases base
+# - Usar buenas prácticas de DRF
+# - Código limpio y consistente
+
+# ================================
+# 🎯 OBJETIVO FINAL
+# ================================
+
+# Tener un sistema CRUD completo donde:
+# - Cada app tenga su serializer
+# - Las views reutilicen lógica
+# - Las urls sigan un patrón consistente
+# - Agregar una nueva entidad sea rápido y fácil

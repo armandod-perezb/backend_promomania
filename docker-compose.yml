@@ -1,0 +1,75 @@
+# ============================================
+# DOCKER COMPOSE - STACK COMPLETO promomania
+# Sistema de Horarios Universidad Libre
+# ============================================
+
+name: promomania
+
+services:
+  # ==========================================
+  # BASE DE DATOS POSTGRESQL
+  # ==========================================
+  db:
+    container_name: promo_postgres
+    image: postgres:15
+    restart: always
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_DB: mypostgresdb
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: mysecretpassword
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - promomania_network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d mypostgresdb"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ==========================================
+  # BACKEND DJANGO
+  # ==========================================
+  backend:
+    container_name: promomania-backend
+    build:
+      context: .
+      dockerfile: backend.Dockerfile
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    volumes:
+      # Código fuente montado para hot-reload
+      - ./backend:/app
+    environment:
+      # Database (usa los mismos valores que el servicio db)
+      DB_HOST: db
+      DB_PORT: 5432
+      DB_USER: postgres
+      DB_PASSWORD: mysecretpassword
+      DB_NAME: mypostgresdb
+      # Python
+      PYTHONUNBUFFERED: "1"
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - promomania_network
+
+# ==========================================
+# VOLÚMENES PERSISTENTES
+# ==========================================
+volumes:
+  postgres_data:
+    name: promomania_postgres_data
+    driver: local
+
+# ==========================================
+# RED COMPARTIDA
+# ==========================================
+networks:
+  promomania_network:
+    name: promomania_network
+    driver: bridge

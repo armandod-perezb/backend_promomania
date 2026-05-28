@@ -1,0 +1,30 @@
+[
+  {
+    "id": 1,
+    "nombre": "Supermercado XYZ",
+    "direccion": "Calle Principal 123",
+    "ciudad": "Medellin",
+    "estado": "activo"
+  },
+  {
+    "id": 2,
+    "nombre": "Tienda ABC",
+    "direccion": "Carrera 50 456",
+    "ciudad": "Bogota",
+    "estado": "activo"
+  },
+  {
+    "id": 3,
+    "nombre": "Market Central",
+    "direccion": "Avenida 10 789",
+    "ciudad": "Cali",
+    "estado": "activo"
+  },
+  {
+    "id": 4,
+    "nombre": "Super Ahorro",
+    "direccion": "Calle 70 120",
+    "ciudad": "Barranquilla",
+    "estado": "activo"
+  }
+]

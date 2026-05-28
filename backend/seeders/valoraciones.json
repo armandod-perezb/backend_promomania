@@ -1,0 +1,26 @@
+[
+  {
+    "id": 1,
+    "tipo": "positiva",
+    "id_usuario": 2,
+    "codigo_promocion": "PROMO001"
+  },
+  {
+    "id": 2,
+    "tipo": "negativa",
+    "id_usuario": 3,
+    "codigo_promocion": "PROMO003"
+  },
+  {
+    "id": 3,
+    "tipo": "positiva",
+    "id_usuario": 4,
+    "codigo_promocion": "PROMO006"
+  },
+  {
+    "id": 4,
+    "tipo": "positiva",
+    "id_usuario": 6,
+    "codigo_promocion": "PROMO009"
+  }
+]

@@ -1,0 +1,27 @@
+[
+  {
+    "id": 1,
+    "nombre": "Electronica",
+    "descripcion": "Productos electronicos en general"
+  },
+  {
+    "id": 2,
+    "nombre": "Alimentos",
+    "descripcion": "Comida y bebidas"
+  },
+  {
+    "id": 3,
+    "nombre": "Ropa",
+    "descripcion": "Prendas de vestir"
+  },
+  {
+    "id": 4,
+    "nombre": "Hogar",
+    "descripcion": "Productos para el hogar"
+  },
+  {
+    "id": 5,
+    "nombre": "Deportes",
+    "descripcion": "Articulos deportivos"
+  }
+]

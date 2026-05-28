@@ -1,0 +1,26 @@
+[
+  {
+    "id": 1,
+    "id_usuario": 2,
+    "codigo_promocion": "PROMO001",
+    "fecha": "2026-04-03T12:00:00"
+  },
+  {
+    "id": 2,
+    "id_usuario": 3,
+    "codigo_promocion": "PROMO002",
+    "fecha": "2026-04-04T18:30:00"
+  },
+  {
+    "id": 3,
+    "id_usuario": 4,
+    "codigo_promocion": "PROMO006",
+    "fecha": "2026-04-06T09:20:00"
+  },
+  {
+    "id": 4,
+    "id_usuario": 6,
+    "codigo_promocion": "PROMO009",
+    "fecha": "2026-04-12T10:30:00"
+  }
+]

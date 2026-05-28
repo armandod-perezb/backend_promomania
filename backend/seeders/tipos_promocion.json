@@ -1,0 +1,26 @@
+[
+  {
+    "id": 1,
+    "nombre": "Descuento",
+    "descripcion": "Porcentaje de descuento",
+    "estado": "activo"
+  },
+  {
+    "id": 2,
+    "nombre": "2x1",
+    "descripcion": "Lleva dos productos al precio de uno",
+    "estado": "activo"
+  },
+  {
+    "id": 3,
+    "nombre": "Rebaja",
+    "descripcion": "Precio reducido",
+    "estado": "activo"
+  },
+  {
+    "id": 4,
+    "nombre": "Envio gratis",
+    "descripcion": "Sin costo de envio",
+    "estado": "activo"
+  }
+]

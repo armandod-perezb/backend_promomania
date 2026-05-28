@@ -1,0 +1,50 @@
+[
+  {
+    "id": 1,
+    "nombre": "Admin User",
+    "correo": "admin@gmail.com",
+    "password": "123",
+    "rol": "admin",
+    "estado": "activo"
+  },
+  {
+    "id": 2,
+    "nombre": "Juan Perez",
+    "correo": "juan@gmail.com",
+    "password": "pass123",
+    "rol": "usuario",
+    "estado": "activo"
+  },
+  {
+    "id": 3,
+    "nombre": "Maria Garcia",
+    "correo": "maria@gmail.com",
+    "password": "pass456",
+    "rol": "usuario",
+    "estado": "activo"
+  },
+  {
+    "id": 4,
+    "nombre": "Camilo Rios",
+    "correo": "camilo@gmail.com",
+    "password": "pass789",
+    "rol": "usuario",
+    "estado": "activo"
+  },
+  {
+    "id": 5,
+    "nombre": "Laura Torres",
+    "correo": "laura@gmail.com",
+    "password": "pass111",
+    "rol": "usuario",
+    "estado": "inactivo"
+  },
+  {
+    "id": 6,
+    "nombre": "Sergio Diaz",
+    "correo": "sergio@gmail.com",
+    "password": "pass222",
+    "rol": "usuario",
+    "estado": "activo"
+  }
+]
