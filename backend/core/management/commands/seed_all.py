@@ -8,7 +8,7 @@ from notificacion.models import Notificacion
 from promocion.models import Promocion, PromocionHorario, TipoPromocion
 from reporte.models import Reporte
 from supermercado.models import Supermercado
-from usuario.models import Usuario, UsuarioNotificacion
+from usuario.models import Usuario
 from valoracion.models import Valoracion
 
 
@@ -40,7 +40,6 @@ class Command(BaseCommand):
         call_command("seed_promociones")
         call_command("seed_promociones_horarios")
         call_command("seed_notificaciones")
-        call_command("seed_usuario_notificaciones")
         call_command("seed_comentarios")
         call_command("seed_favoritos")
         call_command("seed_valoraciones")
@@ -57,7 +56,6 @@ class Command(BaseCommand):
             Promocion.objects.exists(),
             PromocionHorario.objects.exists(),
             Notificacion.objects.exists(),
-            UsuarioNotificacion.objects.exists(),
             Comentario.objects.exists(),
             Favorito.objects.exists(),
             Valoracion.objects.exists(),

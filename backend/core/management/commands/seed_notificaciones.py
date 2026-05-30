@@ -13,6 +13,17 @@ from .seed_utils import (
 class Command(BaseCommand):
     help = "Seed notificaciones from seeders/notificaciones.json."
 
+    @staticmethod
+    def _map_legacy_tipo(raw_tipo: str | None) -> str:
+        if not raw_tipo:
+            return "general"
+        mapping = {
+            "action_executer": "accion_ejecutor",
+            "action_receiver": "accion_receptor",
+            "action_controller": "accion_controlador",
+        }
+        return mapping.get(raw_tipo, raw_tipo)
+
     def handle(self, *args, **options):
         data = load_seed_data("notificaciones.json")
         created = 0
@@ -22,7 +33,9 @@ class Command(BaseCommand):
                 notificacion_id = item["id"]
                 defaults = {
                     "mensaje": item.get("mensaje", "").strip(),
-                    "t_notificacion": item.get("t_notificacion", "action_receiver"),
+                    "tipo": self._map_legacy_tipo(item.get("tipo") or item.get("t_notificacion")),
+                    "id_usuario_destino_id": item.get("id_usuario_destino"),
+                    "leida": item.get("leida", False),
                 }
                 _, was_created = Notificacion.objects.update_or_create(
                     id=notificacion_id,

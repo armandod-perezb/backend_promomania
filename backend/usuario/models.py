@@ -12,12 +12,17 @@ class Usuario(models.Model):
         ('inactivo', 'Inactivo'),
     ]
 
-    id = models.AutoField(primary_key=True)
-    nombre = models.CharField(max_length=100)
+    id = models.BigAutoField(primary_key=True)
+    nombre = models.CharField(max_length=120)
     correo = models.CharField(max_length=150, unique=True)
     password = models.CharField(max_length=255)
+    ciudad = models.CharField(max_length=120, null=True, blank=True)
+    nivel = models.IntegerField(null=True, blank=True)
+    puntuacion = models.IntegerField(null=True, blank=True)
     rol = models.CharField(max_length=20, choices=ROL_CHOICES, default='usuario')
     estado = models.CharField(max_length=20, choices=ESTADO_CHOICES, default='activo')
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
 
     @property
     def is_authenticated(self):
@@ -35,33 +40,4 @@ class Usuario(models.Model):
         return f"{self.nombre} ({self.rol})"
 
     class Meta:
-        db_table = 'Usuario'
-
-
-class UsuarioNotificacion(models.Model):
-    id = models.AutoField(primary_key=True)
-    id_usuario = models.ForeignKey(
-        Usuario,
-        on_delete=models.CASCADE,
-        db_column='id_usuario',
-        related_name='usuario_notificaciones',
-    )
-    id_notificacion = models.ForeignKey(
-        'notificacion.Notificacion',
-        on_delete=models.CASCADE,
-        db_column='id_notificacion',
-        related_name='usuario_notificaciones',
-    )
-    leida = models.BooleanField(default=False)
-    fecha_recibida = models.DateTimeField(auto_now_add=True)
-
-    def __str__(self):
-        return (
-            f"Usuario {self.id_usuario_id} - "
-            f"Notificacion {self.id_notificacion_id} - "
-            f"Leida: {self.leida}"
-        )
-
-    class Meta:
-        db_table = 'UsuarioNotificacion'
-        unique_together = ('id_usuario', 'id_notificacion')
+        db_table = 'usuarios'

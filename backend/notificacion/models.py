@@ -1,24 +1,28 @@
 from django.db import models
+from usuario.models import Usuario
 
 
 class Notificacion(models.Model):
-	TIPO_NOTIFICACION_CHOICES = [
-		('action_executer', 'Action Executer'),
-		('action_receiver', 'Action Receiver'),
-		('action_controller', 'Action Controller'),
-	]
+    id = models.BigAutoField(primary_key=True)
+    mensaje = models.TextField()
+    fecha = models.DateTimeField(auto_now_add=True)
+    tipo = models.CharField(max_length=40, default='general')
+    id_usuario_destino = models.ForeignKey(
+        Usuario,
+        on_delete=models.SET_NULL,
+        db_column='id_usuario_destino',
+        related_name='notificaciones_destino',
+        null=True,
+        blank=True,
+    )
+    leida = models.BooleanField(default=False)
 
-	id = models.AutoField(primary_key=True)
-	mensaje = models.CharField(max_length=255)
-	fecha = models.DateTimeField(auto_now_add=True)
-	t_notificacion = models.CharField(
-		max_length=30,
-		choices=TIPO_NOTIFICACION_CHOICES,
-		default='action_receiver',
-	)
+    def __str__(self):
+        return f"{self.tipo}: {self.mensaje}"
 
-	def __str__(self):
-		return f"{self.t_notificacion}: {self.mensaje}"
-
-	class Meta:
-		db_table = 'Notificacion'
+    class Meta:
+        db_table = 'notificaciones'
+        indexes = [
+            models.Index(fields=['id_usuario_destino'], name='idx_notificaciones_usuario'),
+            models.Index(fields=['leida'], name='idx_notificaciones_leida'),
+        ]

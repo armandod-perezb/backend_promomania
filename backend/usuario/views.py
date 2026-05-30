@@ -4,11 +4,10 @@ from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from .models import Usuario, UsuarioNotificacion
+from .models import Usuario
 from .serializers import (
     AuthResponseSerializer,
     LoginSerializer,
-    UsuarioNotificacionSerializer,
     UsuarioSerializer,
 )
 from .services import UsuarioAuthService
@@ -25,11 +24,6 @@ class UsuarioViewSet(BaseModelViewSet):
         if self.action == 'create':
             return [AllowAny()]
         return super().get_permissions()
-
-
-class UsuarioNotificacionViewSet(BaseModelViewSet):
-    model = UsuarioNotificacion
-    serializer_class = UsuarioNotificacionSerializer
 
 
 class AuthLoginView(APIView):

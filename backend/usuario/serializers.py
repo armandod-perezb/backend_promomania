@@ -1,7 +1,7 @@
 from django.contrib.auth.hashers import make_password
 from rest_framework import serializers
 
-from .models import Usuario, UsuarioNotificacion
+from .models import Usuario
 from .services import UsuarioValidationService
 
 
@@ -37,12 +37,6 @@ class UsuarioSerializer(serializers.ModelSerializer):
         if 'password' in validated_data:
             validated_data['password'] = make_password(validated_data['password'])
         return super().update(instance, validated_data)
-
-
-class UsuarioNotificacionSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = UsuarioNotificacion
-        fields = '__all__'
 
 
 class LoginSerializer(serializers.Serializer):

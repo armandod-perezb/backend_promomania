@@ -1,4 +1,4 @@
-from django.core.management.base import BaseCommand
+from django.core.management.base import BaseCommand, CommandError
 from django.db import transaction
 
 from comentario.models import Comentario
@@ -26,8 +26,13 @@ class Command(BaseCommand):
                 codigo = item.get("codigo_promocion")
                 reply_id = item.get("id_comment_reply")
 
-                usuario = Usuario.objects.get(id=usuario_id) if usuario_id else None
-                promocion = Promocion.objects.get(codigo=codigo) if codigo else None
+                if not usuario_id:
+                    raise CommandError(f"Comentario {comment_id}: id_usuario es obligatorio.")
+                if not codigo:
+                    raise CommandError(f"Comentario {comment_id}: codigo_promocion es obligatorio.")
+
+                usuario = Usuario.objects.get(id=usuario_id)
+                promocion = Promocion.objects.get(codigo=codigo)
                 reply = Comentario.objects.get(id=reply_id) if reply_id else None
 
                 defaults = {

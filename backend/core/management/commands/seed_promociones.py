@@ -23,6 +23,15 @@ class Command(BaseCommand):
                 categoria_id = item.get("id_categoria")
                 tipo_id = item.get("id_tipo_promocion")
 
+                if not usuario_id:
+                    raise CommandError(f"Promocion {codigo}: id_usuario es obligatorio.")
+                if not supermercado_id:
+                    raise CommandError(f"Promocion {codigo}: id_supermercado es obligatorio.")
+                if not categoria_id:
+                    raise CommandError(f"Promocion {codigo}: id_categoria es obligatorio.")
+                if not tipo_id:
+                    raise CommandError(f"Promocion {codigo}: id_tipo_promocion es obligatorio.")
+
                 try:
                     usuario = Usuario.objects.get(id=usuario_id) if usuario_id else None
                 except Usuario.DoesNotExist as exc:
@@ -61,11 +70,14 @@ class Command(BaseCommand):
                     "ubicacion": item.get("ubicacion"),
                     "url": item.get("url"),
                     "foto": item.get("foto"),
+                    "foto_es_local": item.get("foto_es_local", False),
                     "tipo_vigencia": item.get("tipo_vigencia", "por_fecha"),
                     "fecha_inicio": parse_date(item.get("fecha_inicio")),
                     "fecha_fin": parse_date(item.get("fecha_fin")),
                     "estado": item.get("estado", "pendiente"),
                     "vistas": item.get("vistas", 0),
+                    "lat": item.get("lat"),
+                    "lng": item.get("lng"),
                     "id_usuario": usuario,
                     "id_supermercado": supermercado,
                     "id_categoria": categoria,

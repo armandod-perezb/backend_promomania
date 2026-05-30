@@ -1,4 +1,4 @@
-from django.core.management.base import BaseCommand
+from django.core.management.base import BaseCommand, CommandError
 from django.db import transaction
 
 from promocion.models import Promocion, PromocionHorario
@@ -16,7 +16,11 @@ class Command(BaseCommand):
             for item in data:
                 horario_id = item["id"]
                 codigo = item.get("codigo_promocion")
-                promocion = Promocion.objects.get(codigo=codigo) if codigo else None
+                if not codigo:
+                    raise CommandError(
+                        f"PromocionHorario {horario_id}: codigo_promocion es obligatorio."
+                    )
+                promocion = Promocion.objects.get(codigo=codigo)
 
                 defaults = {
                     "dia_semana": item.get("dia_semana"),

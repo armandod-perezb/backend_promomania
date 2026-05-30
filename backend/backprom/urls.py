@@ -30,12 +30,11 @@ from promocion.views import (
 )
 from reporte.views import ReporteViewSet
 from supermercado.views import SupermercadoViewSet
-from usuario.views import AuthLoginView, AuthMeView, UsuarioNotificacionViewSet, UsuarioViewSet
+from usuario.views import AuthLoginView, AuthMeView, UsuarioViewSet
 from valoracion.views import ValoracionViewSet
 
 router = DefaultRouter()
 router.register('usuarios', UsuarioViewSet, basename='usuarios')
-router.register('usuarios-notificaciones', UsuarioNotificacionViewSet, basename='usuarios-notificaciones')
 router.register('categorias', CategoriaViewSet, basename='categorias')
 router.register('supermercados', SupermercadoViewSet, basename='supermercados')
 router.register('promociones', PromocionViewSet, basename='promociones')

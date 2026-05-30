@@ -1,4 +1,4 @@
-from django.core.management.base import BaseCommand
+from django.core.management.base import BaseCommand, CommandError
 from django.db import transaction
 
 from favorito.models import Favorito
@@ -25,8 +25,13 @@ class Command(BaseCommand):
                 usuario_id = item.get("id_usuario")
                 codigo = item.get("codigo_promocion")
 
-                usuario = Usuario.objects.get(id=usuario_id) if usuario_id else None
-                promocion = Promocion.objects.get(codigo=codigo) if codigo else None
+                if not usuario_id:
+                    raise CommandError(f"Favorito {favorito_id}: id_usuario es obligatorio.")
+                if not codigo:
+                    raise CommandError(f"Favorito {favorito_id}: codigo_promocion es obligatorio.")
+
+                usuario = Usuario.objects.get(id=usuario_id)
+                promocion = Promocion.objects.get(codigo=codigo)
 
                 defaults = {
                     "id_usuario": usuario,

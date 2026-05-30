@@ -38,8 +38,8 @@ class PromocionValidationService:
 
         errors = {}
 
-        if precio is not None and precio <= 0:
-            errors['precio'] = 'El precio debe ser mayor a 0.'
+        if precio is not None and precio < 0:
+            errors['precio'] = 'El precio debe ser mayor o igual a 0.'
 
         if descuento is not None and not (0 <= descuento <= 100):
             errors['descuento'] = 'El descuento debe estar entre 0 y 100.'
