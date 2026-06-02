@@ -14,7 +14,7 @@ services:
     image: postgres:15
     restart: always
     ports:
-      - "5432:5432"
+      - "5433:5432"
     environment:
       POSTGRES_DB: mypostgresdb
       POSTGRES_USER: postgres
@@ -39,7 +39,7 @@ services:
       dockerfile: backend.Dockerfile
     restart: unless-stopped
     ports:
-      - "8000:8000"
+      - "8001:8000"
     volumes:
       # Código fuente montado para hot-reload
       - ./backend:/app

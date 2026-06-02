@@ -16,6 +16,21 @@ class PromocionSerializer(serializers.ModelSerializer):
         fields = '__all__'
 
     def validate(self, attrs):
+        # Validar que las claves foráneas no sean 0 o null
+        fk_fields = {
+            'id_usuario': 'usuario',
+            'id_supermercado': 'supermercado',
+            'id_categoria': 'categoría',
+            'id_tipo_promocion': 'tipo de promoción',
+        }
+        
+        for field, label in fk_fields.items():
+            value = attrs.get(field)
+            if value == 0 or value == '0':
+                raise serializers.ValidationError({
+                    field: f'Debe seleccionar un {label} válido (0 no es un ID válido)'
+                })
+        
         attrs = self._normalize_location_fields(attrs)
         instance = getattr(self, 'instance', None)
         merged = {}
