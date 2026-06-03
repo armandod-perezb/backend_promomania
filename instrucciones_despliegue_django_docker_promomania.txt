@@ -1,0 +1,1690 @@
+INSTRUCCIONES DETALLADAS PARA ALOJAR BACKEND DJANGO + POSTGRESQL USANDO DOCKER
+Proyecto: Promomania
+Backend Django: backprom
+Base de datos local: PostgreSQL en Docker Compose
+Base de datos en internet: PostgreSQL en Neon
+Despliegue gratuito recomendado: Render usando Dockerfile
+
+================================================================================
+0. RESUMEN DE LA IDEA
+================================================================================
+
+Tu proyecto actualmente tiene un docker-compose.yml con dos servicios:
+
+1. db:
+   - PostgreSQL local.
+   - Sirve para desarrollo en tu computador.
+   - Host interno para Django: db
+   - Puerto interno: 5432
+   - Puerto expuesto en tu PC: 5433
+
+2. backend:
+   - Django dentro de Docker.
+   - Usa variables DB_HOST, DB_PORT, DB_USER, DB_PASSWORD y DB_NAME.
+   - Expone el backend en tu PC por http://localhost:8001
+
+Eso está bien para desarrollo local.
+
+Pero para alojarlo gratis en internet, lo recomendable NO es subir el docker-compose completo con PostgreSQL incluido, sino hacer esto:
+
+LOCAL:
+Docker Compose:
+- backend Django
+- PostgreSQL local
+
+PRODUCCIÓN GRATIS:
+Render:
+- backend Django dockerizado usando backend.Dockerfile
+
+Neon:
+- PostgreSQL administrado en la nube
+
+Arquitectura final:
+
+Frontend, si existe:
+Vercel / Netlify / Render Static Site
+
+Backend:
+Render Web Service con Dockerfile
+
+Base de datos:
+Neon PostgreSQL
+
+================================================================================
+1. ESTRUCTURA RECOMENDADA DEL PROYECTO
+================================================================================
+
+Asumiendo que tu proyecto tiene esta estructura:
+
+promomania/
+│
+├── docker-compose.yml
+├── backend.Dockerfile
+├── .gitignore
+├── .dockerignore
+│
+└── backend/
+    ├── manage.py
+    ├── requirements.txt
+    ├── entrypoint.sh
+    │
+    ├── backprom/
+    │   ├── __init__.py
+    │   ├── settings.py
+    │   ├── urls.py
+    │   ├── wsgi.py
+    │   └── asgi.py
+    │
+    ├── core/
+    ├── categoria/
+    ├── usuario/
+    ├── promocion/
+    ├── supermercado/
+    ├── reporte/
+    ├── notificacion/
+    ├── valoracion/
+    ├── comentario/
+    └── favorito/
+
+Si tu estructura cambia, adapta las rutas, especialmente:
+
+- backend/manage.py
+- backend/backprom/settings.py
+- backend/backprom/wsgi.py
+- backend/requirements.txt
+- backend/entrypoint.sh
+- backend.Dockerfile
+
+Tu WSGI_APPLICATION actual es:
+
+backprom.wsgi.application
+
+Por eso en producción el comando de Gunicorn debe ser:
+
+gunicorn backprom.wsgi:application
+
+================================================================================
+2. DIFERENCIA ENTRE DESARROLLO LOCAL Y PRODUCCIÓN
+================================================================================
+
+DESARROLLO LOCAL:
+
+Usas docker-compose.yml para levantar:
+
+- PostgreSQL local
+- Django local dentro de Docker
+
+Comando:
+
+docker compose up --build
+
+URL local:
+
+http://localhost:8001
+
+Admin local:
+
+http://localhost:8001/admin/
+
+Base de datos local desde Django:
+
+DB_HOST=db
+DB_PORT=5432
+DB_NAME=mypostgresdb
+DB_USER=postgres
+DB_PASSWORD=mysecretpassword
+
+
+PRODUCCIÓN:
+
+Usas solo el backend.Dockerfile en Render.
+
+La base de datos NO estará dentro del docker-compose.
+La base de datos será Neon.
+
+Render recibe una variable:
+
+DATABASE_URL=postgresql://usuario:password@host.neon.tech/dbname?sslmode=require
+
+Django debe detectar si existe DATABASE_URL.
+Si existe, usa Neon.
+Si no existe, usa las variables DB_HOST, DB_NAME, etc. del Docker Compose local.
+
+================================================================================
+3. DEPENDENCIAS NECESARIAS
+================================================================================
+
+En tu carpeta backend, asegúrate de tener estas dependencias en requirements.txt:
+
+Django
+djangorestframework
+django-cors-headers
+gunicorn
+whitenoise
+dj-database-url
+psycopg[binary]
+
+Puedes instalarlas así desde tu entorno local:
+
+cd backend
+pip install gunicorn whitenoise dj-database-url "psycopg[binary]"
+pip freeze > requirements.txt
+
+Si ya estás usando psycopg2-binary y tu proyecto funciona, podrías mantenerlo, pero para Django moderno es recomendable usar psycopg con binary:
+
+psycopg[binary]
+
+Ejemplo de requirements.txt aproximado:
+
+Django==6.0.3
+djangorestframework
+django-cors-headers
+gunicorn
+whitenoise
+dj-database-url
+psycopg[binary]
+
+No necesariamente debes tener exactamente esas versiones.
+Lo importante es que estén esas librerías.
+
+================================================================================
+4. CONFIGURAR settings.py
+================================================================================
+
+Archivo:
+
+backend/backprom/settings.py
+
+Tu archivo actual ya tiene cosas buenas:
+
+- Usa variables de entorno.
+- Tiene env_bool.
+- Tiene env_list.
+- Ya usa PostgreSQL.
+- Ya tiene CORS.
+- Ya tiene Django REST Framework.
+- Ya tiene WSGI_APPLICATION = 'backprom.wsgi.application'
+
+Pero hay que ajustar varias cosas para producción:
+
+1. DEBUG no debe quedar True por defecto.
+2. ALLOWED_HOSTS no debe quedar ['*'] por defecto.
+3. CORS_ALLOW_ALL_ORIGINS no debe quedar True por defecto.
+4. Debes soportar DATABASE_URL para Neon.
+5. Debes agregar WhiteNoise.
+6. Debes configurar estáticos correctamente.
+7. Debes activar algunas configuraciones de seguridad para proxy HTTPS en Render.
+
+--------------------------------------------------------------------------------
+4.1 Imports
+--------------------------------------------------------------------------------
+
+Arriba de settings.py, deja estos imports:
+
+import os
+from pathlib import Path
+import dj_database_url
+
+Si no tienes dj_database_url instalado, instala:
+
+pip install dj-database-url
+
+--------------------------------------------------------------------------------
+4.2 Funciones auxiliares
+--------------------------------------------------------------------------------
+
+Puedes conservar tus funciones actuales:
+
+def env_bool(key: str, default: bool = False) -> bool:
+    value = os.getenv(key)
+    if value is None:
+        return default
+    return value.strip().lower() in {'1', 'true', 'yes', 'y', 'on'}
+
+
+def env_list(key: str, default: list[str] | None = None) -> list[str]:
+    value = os.getenv(key)
+    if value is None:
+        return default or []
+    return [item.strip() for item in value.split(',') if item.strip()]
+
+--------------------------------------------------------------------------------
+4.3 SECRET_KEY
+--------------------------------------------------------------------------------
+
+Cambia o conserva esta parte, pero en producción usa variable de entorno:
+
+SECRET_KEY = os.getenv(
+    'DJANGO_SECRET_KEY',
+    'django-insecure-solo-para-desarrollo-local',
+)
+
+En Render colocarás:
+
+DJANGO_SECRET_KEY=una_clave_larga_segura
+
+IMPORTANTE:
+No subas claves reales a GitHub.
+
+--------------------------------------------------------------------------------
+4.4 DEBUG
+--------------------------------------------------------------------------------
+
+Cambia esto:
+
+DEBUG = env_bool('DJANGO_DEBUG', default=True)
+
+Por esto:
+
+DEBUG = env_bool('DJANGO_DEBUG', default=False)
+
+En desarrollo local lo activas desde docker-compose:
+
+DJANGO_DEBUG=True
+
+En Render lo colocas:
+
+DJANGO_DEBUG=False
+
+--------------------------------------------------------------------------------
+4.5 ALLOWED_HOSTS
+--------------------------------------------------------------------------------
+
+Cambia esto:
+
+ALLOWED_HOSTS = env_list('DJANGO_ALLOWED_HOSTS', default=['*'])
+
+Por esto:
+
+ALLOWED_HOSTS = env_list(
+    'DJANGO_ALLOWED_HOSTS',
+    default=['localhost', '127.0.0.1']
+)
+
+En desarrollo local usarás:
+
+DJANGO_ALLOWED_HOSTS=localhost,127.0.0.1,0.0.0.0
+
+En Render usarás:
+
+DJANGO_ALLOWED_HOSTS=tu-backend.onrender.com
+
+Ejemplo real:
+
+DJANGO_ALLOWED_HOSTS=promomania-backend.onrender.com
+
+No pongas https:// en ALLOWED_HOSTS.
+
+Correcto:
+
+promomania-backend.onrender.com
+
+Incorrecto:
+
+https://promomania-backend.onrender.com
+
+--------------------------------------------------------------------------------
+4.6 INSTALLED_APPS
+--------------------------------------------------------------------------------
+
+Tu INSTALLED_APPS puede quedar así:
+
+INSTALLED_APPS = [
+    'django.contrib.admin',
+    'django.contrib.auth',
+    'django.contrib.contenttypes',
+    'django.contrib.sessions',
+    'django.contrib.messages',
+    'django.contrib.staticfiles',
+
+    'corsheaders',
+    'rest_framework',
+
+    'core',
+    'categoria',
+    'usuario',
+    'promocion',
+    'supermercado',
+    'reporte',
+    'notificacion',
+    'valoracion',
+    'comentario',
+    'favorito',
+]
+
+--------------------------------------------------------------------------------
+4.7 MIDDLEWARE
+--------------------------------------------------------------------------------
+
+Debes agregar WhiteNoise justo después de SecurityMiddleware.
+
+Debe quedar así:
+
+MIDDLEWARE = [
+    'django.middleware.security.SecurityMiddleware',
+    'whitenoise.middleware.WhiteNoiseMiddleware',
+
+    'corsheaders.middleware.CorsMiddleware',
+
+    'django.contrib.sessions.middleware.SessionMiddleware',
+    'django.middleware.common.CommonMiddleware',
+    'django.middleware.csrf.CsrfViewMiddleware',
+    'django.contrib.auth.middleware.AuthenticationMiddleware',
+    'django.contrib.messages.middleware.MessageMiddleware',
+    'django.middleware.clickjacking.XFrameOptionsMiddleware',
+]
+
+El orden es importante:
+
+1. SecurityMiddleware
+2. WhiteNoiseMiddleware
+3. CorsMiddleware
+4. SessionMiddleware
+5. CommonMiddleware
+6. CsrfViewMiddleware
+7. AuthenticationMiddleware
+
+--------------------------------------------------------------------------------
+4.8 DATABASES
+--------------------------------------------------------------------------------
+
+Reemplaza tu bloque DATABASES por este:
+
+DATABASE_URL = os.getenv("DATABASE_URL")
+
+if DATABASE_URL:
+    DATABASES = {
+        "default": dj_database_url.config(
+            default=DATABASE_URL,
+            conn_max_age=600,
+            ssl_require=True,
+        )
+    }
+else:
+    DATABASES = {
+        "default": {
+            "ENGINE": "django.db.backends.postgresql",
+            "NAME": os.getenv("DB_NAME", "mypostgresdb"),
+            "USER": os.getenv("DB_USER", "postgres"),
+            "PASSWORD": os.getenv("DB_PASSWORD", "mysecretpassword"),
+            "HOST": os.getenv("DB_HOST", "127.0.0.1"),
+            "PORT": os.getenv("DB_PORT", "5432"),
+        }
+    }
+
+Con esto tendrás:
+
+- En Docker local:
+  Usa DB_HOST=db, DB_NAME=mypostgresdb, etc.
+
+- En Render:
+  Usa DATABASE_URL de Neon.
+
+--------------------------------------------------------------------------------
+4.9 CORS Y CSRF
+--------------------------------------------------------------------------------
+
+Cambia o ajusta esta parte:
+
+CORS_ALLOW_ALL_ORIGINS = env_bool('CORS_ALLOW_ALL_ORIGINS', default=DEBUG)
+CORS_ALLOWED_ORIGINS = env_list('CORS_ALLOWED_ORIGINS')
+CORS_ALLOW_CREDENTIALS = env_bool('CORS_ALLOW_CREDENTIALS', default=True)
+CSRF_TRUSTED_ORIGINS = env_list('CSRF_TRUSTED_ORIGINS')
+
+En desarrollo local puedes usar:
+
+CORS_ALLOW_ALL_ORIGINS=True
+
+En producción debes usar:
+
+CORS_ALLOW_ALL_ORIGINS=False
+
+Y definir el dominio de tu frontend:
+
+CORS_ALLOWED_ORIGINS=https://tu-frontend.vercel.app
+
+Si todavía no tienes frontend, puedes dejarlo vacío temporalmente.
+
+CSRF_TRUSTED_ORIGINS debe incluir URLs completas con https://
+
+Ejemplo:
+
+CSRF_TRUSTED_ORIGINS=https://promomania-backend.onrender.com,https://tu-frontend.vercel.app
+
+Correcto:
+
+https://promomania-backend.onrender.com
+
+Incorrecto:
+
+promomania-backend.onrender.com
+
+--------------------------------------------------------------------------------
+4.10 ARCHIVOS ESTÁTICOS
+--------------------------------------------------------------------------------
+
+Deja esta configuración:
+
+STATIC_URL = '/static/'
+STATIC_ROOT = BASE_DIR / 'staticfiles'
+
+STORAGES = {
+    "default": {
+        "BACKEND": "django.core.files.storage.FileSystemStorage",
+    },
+    "staticfiles": {
+        "BACKEND": "whitenoise.storage.CompressedManifestStaticFilesStorage",
+    },
+}
+
+Esto permite que el admin de Django tenga estilos en producción.
+
+--------------------------------------------------------------------------------
+4.11 CONFIGURACIONES HTTPS / PROXY
+--------------------------------------------------------------------------------
+
+Agrega al final de settings.py:
+
+SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
+SESSION_COOKIE_SECURE = not DEBUG
+CSRF_COOKIE_SECURE = not DEBUG
+
+Esto ayuda cuando Django está detrás del proxy de Render con HTTPS.
+
+--------------------------------------------------------------------------------
+4.12 settings.py resumido de las partes importantes
+--------------------------------------------------------------------------------
+
+No copies necesariamente todo el archivo completo si ya tienes tus apps y configuración, pero estas son las partes clave:
+
+import os
+from pathlib import Path
+import dj_database_url
+
+BASE_DIR = Path(__file__).resolve().parent.parent
+
+
+def env_bool(key: str, default: bool = False) -> bool:
+    value = os.getenv(key)
+    if value is None:
+        return default
+    return value.strip().lower() in {'1', 'true', 'yes', 'y', 'on'}
+
+
+def env_list(key: str, default: list[str] | None = None) -> list[str]:
+    value = os.getenv(key)
+    if value is None:
+        return default or []
+    return [item.strip() for item in value.split(',') if item.strip()]
+
+
+SECRET_KEY = os.getenv(
+    'DJANGO_SECRET_KEY',
+    'django-insecure-solo-para-desarrollo-local',
+)
+
+DEBUG = env_bool('DJANGO_DEBUG', default=False)
+
+ALLOWED_HOSTS = env_list(
+    'DJANGO_ALLOWED_HOSTS',
+    default=['localhost', '127.0.0.1']
+)
+
+INSTALLED_APPS = [
+    'django.contrib.admin',
+    'django.contrib.auth',
+    'django.contrib.contenttypes',
+    'django.contrib.sessions',
+    'django.contrib.messages',
+    'django.contrib.staticfiles',
+
+    'corsheaders',
+    'rest_framework',
+
+    'core',
+    'categoria',
+    'usuario',
+    'promocion',
+    'supermercado',
+    'reporte',
+    'notificacion',
+    'valoracion',
+    'comentario',
+    'favorito',
+]
+
+MIDDLEWARE = [
+    'django.middleware.security.SecurityMiddleware',
+    'whitenoise.middleware.WhiteNoiseMiddleware',
+    'corsheaders.middleware.CorsMiddleware',
+    'django.contrib.sessions.middleware.SessionMiddleware',
+    'django.middleware.common.CommonMiddleware',
+    'django.middleware.csrf.CsrfViewMiddleware',
+    'django.contrib.auth.middleware.AuthenticationMiddleware',
+    'django.contrib.messages.middleware.MessageMiddleware',
+    'django.middleware.clickjacking.XFrameOptionsMiddleware',
+]
+
+ROOT_URLCONF = 'backprom.urls'
+WSGI_APPLICATION = 'backprom.wsgi.application'
+
+DATABASE_URL = os.getenv("DATABASE_URL")
+
+if DATABASE_URL:
+    DATABASES = {
+        "default": dj_database_url.config(
+            default=DATABASE_URL,
+            conn_max_age=600,
+            ssl_require=True,
+        )
+    }
+else:
+    DATABASES = {
+        "default": {
+            "ENGINE": "django.db.backends.postgresql",
+            "NAME": os.getenv("DB_NAME", "mypostgresdb"),
+            "USER": os.getenv("DB_USER", "postgres"),
+            "PASSWORD": os.getenv("DB_PASSWORD", "mysecretpassword"),
+            "HOST": os.getenv("DB_HOST", "127.0.0.1"),
+            "PORT": os.getenv("DB_PORT", "5432"),
+        }
+    }
+
+CORS_ALLOW_ALL_ORIGINS = env_bool('CORS_ALLOW_ALL_ORIGINS', default=DEBUG)
+CORS_ALLOWED_ORIGINS = env_list('CORS_ALLOWED_ORIGINS')
+CORS_ALLOW_CREDENTIALS = env_bool('CORS_ALLOW_CREDENTIALS', default=True)
+CSRF_TRUSTED_ORIGINS = env_list('CSRF_TRUSTED_ORIGINS')
+
+LANGUAGE_CODE = 'es-co'
+TIME_ZONE = os.getenv('DJANGO_TIME_ZONE', 'America/Bogota')
+USE_I18N = True
+USE_TZ = True
+
+STATIC_URL = '/static/'
+STATIC_ROOT = BASE_DIR / 'staticfiles'
+
+STORAGES = {
+    "default": {
+        "BACKEND": "django.core.files.storage.FileSystemStorage",
+    },
+    "staticfiles": {
+        "BACKEND": "whitenoise.storage.CompressedManifestStaticFilesStorage",
+    },
+}
+
+REST_FRAMEWORK = {
+    'DEFAULT_AUTHENTICATION_CLASSES': (
+        'core.authentication.UsuarioTokenAuthentication',
+    ),
+    'DEFAULT_PERMISSION_CLASSES': (
+        'rest_framework.permissions.IsAuthenticatedOrReadOnly',
+    ),
+    'DEFAULT_PAGINATION_CLASS': 'rest_framework.pagination.PageNumberPagination',
+    'PAGE_SIZE': int(os.getenv('API_PAGE_SIZE', '20')),
+}
+
+API_TOKEN_TTL_SECONDS = int(os.getenv('API_TOKEN_TTL_SECONDS', str(60 * 60 * 24 * 7)))
+
+DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
+
+SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
+SESSION_COOKIE_SECURE = not DEBUG
+CSRF_COOKIE_SECURE = not DEBUG
+
+================================================================================
+5. CREAR backend/entrypoint.sh
+================================================================================
+
+Crea este archivo:
+
+backend/entrypoint.sh
+
+Contenido:
+
+#!/bin/sh
+set -e
+
+echo "Aplicando collectstatic..."
+python manage.py collectstatic --noinput
+
+echo "Aplicando migraciones..."
+python manage.py migrate
+
+echo "Iniciando Gunicorn..."
+gunicorn backprom.wsgi:application \
+  --bind 0.0.0.0:${PORT:-8000} \
+  --workers ${WEB_CONCURRENCY:-2} \
+  --timeout 120
+
+Explicación:
+
+- collectstatic:
+  Recolecta archivos estáticos para que funcione el admin de Django.
+
+- migrate:
+  Aplica migraciones en la base de datos.
+
+- gunicorn:
+  Levanta el backend en producción.
+
+- 0.0.0.0:
+  Es necesario para que Render pueda acceder al servidor.
+
+- ${PORT:-8000}:
+  Usa la variable PORT si Render la define.
+  Si no existe, usa 8000.
+
+En Linux/Mac, da permisos:
+
+chmod +x backend/entrypoint.sh
+
+En Windows con Git, también puedes hacer:
+
+git update-index --chmod=+x backend/entrypoint.sh
+
+Si estás en Windows y no funciona por permisos, en el Dockerfile también pondremos:
+
+RUN chmod +x /app/entrypoint.sh
+
+================================================================================
+6. CREAR O AJUSTAR backend.Dockerfile
+================================================================================
+
+Archivo en la raíz:
+
+backend.Dockerfile
+
+Contenido recomendado:
+
+FROM python:3.13-slim
+
+ENV PYTHONDONTWRITEBYTECODE=1
+ENV PYTHONUNBUFFERED=1
+
+WORKDIR /app
+
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends build-essential libpq-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY ./backend/requirements.txt /app/requirements.txt
+
+RUN pip install --upgrade pip \
+    && pip install --no-cache-dir -r /app/requirements.txt
+
+COPY ./backend /app
+
+RUN chmod +x /app/entrypoint.sh
+
+EXPOSE 8000
+
+CMD ["/app/entrypoint.sh"]
+
+Explicación:
+
+- FROM python:3.13-slim:
+  Imagen base de Python.
+
+- WORKDIR /app:
+  Carpeta de trabajo dentro del contenedor.
+
+- build-essential libpq-dev:
+  Dependencias útiles para compilar librerías relacionadas con PostgreSQL.
+
+- COPY ./backend/requirements.txt:
+  Copia las dependencias.
+
+- pip install:
+  Instala dependencias.
+
+- COPY ./backend /app:
+  Copia el código Django.
+
+- chmod +x:
+  Da permisos al entrypoint.
+
+- EXPOSE 8000:
+  Documenta el puerto interno.
+
+- CMD:
+  Ejecuta entrypoint.sh.
+
+================================================================================
+7. CREAR .dockerignore
+================================================================================
+
+En la raíz del proyecto, crea:
+
+.dockerignore
+
+Contenido:
+
+.git
+.gitignore
+venv
+env
+__pycache__
+*.pyc
+*.pyo
+*.pyd
+.Python
+db.sqlite3
+staticfiles
+media
+.env
+.env.local
+.env.production
+node_modules
+dist
+build
+
+Esto evita copiar basura o secretos dentro de la imagen Docker.
+
+================================================================================
+8. CREAR O AJUSTAR .gitignore
+================================================================================
+
+En la raíz del proyecto:
+
+.gitignore
+
+Contenido recomendado:
+
+# Python
+venv/
+env/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+
+# Django
+db.sqlite3
+staticfiles/
+media/
+
+# Entorno
+.env
+.env.local
+.env.production
+
+# IDE
+.vscode/
+.idea/
+
+# Sistema
+.DS_Store
+Thumbs.db
+
+# Node / frontend, si existe
+node_modules/
+dist/
+build/
+
+IMPORTANTE:
+No subas .env a GitHub.
+
+================================================================================
+9. docker-compose.yml PARA DESARROLLO LOCAL
+================================================================================
+
+Tu docker-compose.yml actual está bien. Pero puedes ajustarlo así para dejarlo claramente como entorno de desarrollo:
+
+name: promomania
+
+services:
+  db:
+    container_name: promo_postgres
+    image: postgres:15
+    restart: always
+    ports:
+      - "5433:5432"
+    environment:
+      POSTGRES_DB: mypostgresdb
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: mysecretpassword
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - promomania_network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d mypostgresdb"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    container_name: promomania-backend
+    build:
+      context: .
+      dockerfile: backend.Dockerfile
+    restart: unless-stopped
+    ports:
+      - "8001:8000"
+    volumes:
+      - ./backend:/app
+    environment:
+      DB_HOST: db
+      DB_PORT: 5432
+      DB_USER: postgres
+      DB_PASSWORD: mysecretpassword
+      DB_NAME: mypostgresdb
+
+      DJANGO_SECRET_KEY: django-insecure-solo-desarrollo-local
+      DJANGO_DEBUG: "True"
+      DJANGO_ALLOWED_HOSTS: "localhost,127.0.0.1,0.0.0.0"
+      CORS_ALLOW_ALL_ORIGINS: "True"
+      CORS_ALLOW_CREDENTIALS: "True"
+      CSRF_TRUSTED_ORIGINS: "http://localhost:3000,http://localhost:5173,http://127.0.0.1:5173,http://localhost:8001,http://127.0.0.1:8001"
+
+      PYTHONUNBUFFERED: "1"
+    command: python manage.py runserver 0.0.0.0:8000
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - promomania_network
+
+volumes:
+  postgres_data:
+    name: promomania_postgres_data
+    driver: local
+
+networks:
+  promomania_network:
+    name: promomania_network
+    driver: bridge
+
+Diferencia importante:
+
+command: python manage.py runserver 0.0.0.0:8000
+
+Eso hace que localmente uses el servidor de desarrollo de Django.
+En producción, Render usará el CMD del Dockerfile:
+
+CMD ["/app/entrypoint.sh"]
+
+================================================================================
+10. OPCIONAL: USAR .env.local EN DOCKER COMPOSE
+================================================================================
+
+Puedes evitar colocar contraseñas directamente en docker-compose.
+
+Crea:
+
+.env.local
+
+Contenido:
+
+POSTGRES_DB=mypostgresdb
+POSTGRES_USER=postgres
+POSTGRES_PASSWORD=mysecretpassword
+
+DB_HOST=db
+DB_PORT=5432
+DB_USER=postgres
+DB_PASSWORD=mysecretpassword
+DB_NAME=mypostgresdb
+
+DJANGO_SECRET_KEY=django-insecure-solo-desarrollo-local
+DJANGO_DEBUG=True
+DJANGO_ALLOWED_HOSTS=localhost,127.0.0.1,0.0.0.0
+CORS_ALLOW_ALL_ORIGINS=True
+CORS_ALLOW_CREDENTIALS=True
+CSRF_TRUSTED_ORIGINS=http://localhost:3000,http://localhost:5173,http://127.0.0.1:5173,http://localhost:8001,http://127.0.0.1:8001
+
+Luego en docker-compose.yml puedes usar:
+
+env_file:
+  - .env.local
+
+Pero cuidado:
+No subas .env.local a GitHub.
+
+================================================================================
+11. PROBAR LOCALMENTE CON DOCKER
+================================================================================
+
+Desde la raíz del proyecto, donde está docker-compose.yml:
+
+docker compose up --build
+
+Si todo sale bien, deberías ver logs de:
+
+- PostgreSQL iniciando.
+- Django iniciando.
+- Servidor en 0.0.0.0:8000.
+
+Abre:
+
+http://localhost:8001
+
+Admin:
+
+http://localhost:8001/admin/
+
+Si quieres entrar al contenedor del backend:
+
+docker compose exec backend sh
+
+Ejecutar migraciones manualmente:
+
+docker compose exec backend python manage.py migrate
+
+Crear superusuario local:
+
+docker compose exec backend python manage.py createsuperuser
+
+Verificar configuración de Django:
+
+docker compose exec backend python manage.py check
+
+Ver logs:
+
+docker compose logs -f backend
+
+Ver logs de PostgreSQL:
+
+docker compose logs -f db
+
+Apagar contenedores:
+
+docker compose down
+
+Apagar y borrar volumen de base de datos local:
+
+docker compose down -v
+
+CUIDADO:
+docker compose down -v borra la base de datos local.
+
+================================================================================
+12. CREAR BASE DE DATOS EN NEON
+================================================================================
+
+1. Entra a Neon.
+2. Crea una cuenta.
+3. Crea un nuevo proyecto PostgreSQL.
+4. Copia la cadena de conexión.
+5. Debe verse parecida a esto:
+
+postgresql://usuario:password@ep-algo.us-east-2.aws.neon.tech/neondb?sslmode=require
+
+Esa cadena será tu variable:
+
+DATABASE_URL
+
+IMPORTANTE:
+Debe incluir sslmode=require.
+
+Ejemplo:
+
+DATABASE_URL=postgresql://neondb_owner:clave@ep-nombre.neon.tech/neondb?sslmode=require
+
+No pegues esta cadena en GitHub.
+Solo colócala en las variables de entorno de Render.
+
+================================================================================
+13. SUBIR PROYECTO A GITHUB
+================================================================================
+
+Desde la raíz:
+
+git init
+git add .
+git commit -m "Preparar backend Django con Docker para despliegue"
+git branch -M main
+
+Crea un repositorio en GitHub.
+
+Luego conecta:
+
+git remote add origin https://github.com/tu_usuario/tu_repositorio.git
+git push -u origin main
+
+Antes de subir, verifica que no estés subiendo:
+
+- .env
+- .env.local
+- .env.production
+- claves reales
+- contraseñas reales de producción
+- DATABASE_URL real
+
+Puedes revisar:
+
+git status
+
+================================================================================
+14. CREAR WEB SERVICE EN RENDER CON DOCKER
+================================================================================
+
+En Render:
+
+1. Ve a Dashboard.
+2. Clic en New.
+3. Selecciona Web Service.
+4. Conecta tu GitHub.
+5. Escoge el repositorio.
+6. En Environment o Runtime selecciona Docker.
+7. En Dockerfile Path coloca:
+
+backend.Dockerfile
+
+8. Selecciona el plan gratuito si está disponible.
+9. Crea el servicio.
+
+Render construirá la imagen usando tu Dockerfile.
+
+================================================================================
+15. VARIABLES DE ENTORNO EN RENDER
+================================================================================
+
+En Render, entra a tu servicio:
+
+Environment -> Environment Variables
+
+Agrega estas variables:
+
+DATABASE_URL=postgresql://usuario:password@host.neon.tech/dbname?sslmode=require
+
+DJANGO_SECRET_KEY=una_clave_larga_segura
+DJANGO_DEBUG=False
+DJANGO_ALLOWED_HOSTS=tu-backend.onrender.com
+
+CORS_ALLOW_ALL_ORIGINS=False
+CORS_ALLOW_CREDENTIALS=True
+
+CSRF_TRUSTED_ORIGINS=https://tu-backend.onrender.com
+
+DJANGO_TIME_ZONE=America/Bogota
+PYTHONUNBUFFERED=1
+
+Si tienes frontend desplegado en Vercel:
+
+CORS_ALLOWED_ORIGINS=https://tu-frontend.vercel.app
+CSRF_TRUSTED_ORIGINS=https://tu-backend.onrender.com,https://tu-frontend.vercel.app
+
+Ejemplo:
+
+DATABASE_URL=postgresql://neondb_owner:clave@ep-algo.neon.tech/neondb?sslmode=require
+DJANGO_SECRET_KEY=clave-super-larga-y-segura
+DJANGO_DEBUG=False
+DJANGO_ALLOWED_HOSTS=promomania-backend.onrender.com
+CORS_ALLOW_ALL_ORIGINS=False
+CORS_ALLOWED_ORIGINS=https://promomania.vercel.app
+CORS_ALLOW_CREDENTIALS=True
+CSRF_TRUSTED_ORIGINS=https://promomania-backend.onrender.com,https://promomania.vercel.app
+DJANGO_TIME_ZONE=America/Bogota
+PYTHONUNBUFFERED=1
+
+IMPORTANTE:
+
+DJANGO_ALLOWED_HOSTS:
+- No lleva https://
+
+CSRF_TRUSTED_ORIGINS:
+- Sí lleva https://
+
+CORS_ALLOWED_ORIGINS:
+- Sí lleva https://
+
+================================================================================
+16. DESPLEGAR EN RENDER
+================================================================================
+
+Después de crear el servicio y poner variables:
+
+1. Render empezará el deploy automáticamente.
+2. Revisa los logs.
+3. Deberías ver algo similar a:
+
+Installing dependencies...
+Aplicando collectstatic...
+Aplicando migraciones...
+Iniciando Gunicorn...
+
+4. Si todo sale bien, Render te dará una URL:
+
+https://tu-backend.onrender.com
+
+Prueba:
+
+https://tu-backend.onrender.com/admin/
+
+También prueba tus endpoints, por ejemplo:
+
+https://tu-backend.onrender.com/api/
+https://tu-backend.onrender.com/api/promociones/
+https://tu-backend.onrender.com/api/usuarios/
+
+Las rutas exactas dependen de tu urls.py.
+
+================================================================================
+17. CREAR SUPERUSUARIO EN PRODUCCIÓN
+================================================================================
+
+Opción A: Shell de Render
+
+Si Render permite abrir shell en tu plan, ejecuta:
+
+python manage.py createsuperuser
+
+Opción B: comando temporal de Django
+
+Crea esta estructura dentro de alguna app, por ejemplo core:
+
+backend/core/management/commands/create_admin.py
+
+Estructura:
+
+core/
+└── management/
+    └── commands/
+        └── create_admin.py
+
+Código:
+
+import os
+from django.core.management.base import BaseCommand
+from django.contrib.auth import get_user_model
+
+
+class Command(BaseCommand):
+    help = "Crea un superusuario si no existe"
+
+    def handle(self, *args, **kwargs):
+        User = get_user_model()
+
+        username = os.environ.get("DJANGO_SUPERUSER_USERNAME")
+        email = os.environ.get("DJANGO_SUPERUSER_EMAIL")
+        password = os.environ.get("DJANGO_SUPERUSER_PASSWORD")
+
+        if not username or not email or not password:
+            self.stdout.write(self.style.ERROR("Faltan variables de entorno del superusuario"))
+            return
+
+        if User.objects.filter(username=username).exists():
+            self.stdout.write(self.style.WARNING("El superusuario ya existe"))
+            return
+
+        User.objects.create_superuser(
+            username=username,
+            email=email,
+            password=password
+        )
+
+        self.stdout.write(self.style.SUCCESS("Superusuario creado correctamente"))
+
+Luego en Render agregas:
+
+DJANGO_SUPERUSER_USERNAME=admin
+DJANGO_SUPERUSER_EMAIL=tu_correo@gmail.com
+DJANGO_SUPERUSER_PASSWORD=una_clave_segura
+
+Y modificas temporalmente entrypoint.sh así:
+
+#!/bin/sh
+set -e
+
+echo "Aplicando collectstatic..."
+python manage.py collectstatic --noinput
+
+echo "Aplicando migraciones..."
+python manage.py migrate
+
+echo "Creando superusuario si no existe..."
+python manage.py create_admin
+
+echo "Iniciando Gunicorn..."
+gunicorn backprom.wsgi:application \
+  --bind 0.0.0.0:${PORT:-8000} \
+  --workers ${WEB_CONCURRENCY:-2} \
+  --timeout 120
+
+Haces deploy.
+Verificas que puedas entrar al admin.
+Luego puedes quitar la línea:
+
+python manage.py create_admin
+
+Y volver a desplegar.
+
+================================================================================
+18. CONECTAR FRONTEND CON BACKEND
+================================================================================
+
+Si tienes frontend React con Vite, en Vercel o local debes tener:
+
+VITE_API_URL=https://tu-backend.onrender.com
+
+Ejemplo:
+
+VITE_API_URL=https://promomania-backend.onrender.com
+
+En el código del frontend:
+
+const API_URL = import.meta.env.VITE_API_URL;
+
+fetch(`${API_URL}/api/promociones/`);
+
+Si estás local y el backend está en Docker:
+
+VITE_API_URL=http://localhost:8001
+
+Si el frontend está en producción:
+
+VITE_API_URL=https://tu-backend.onrender.com
+
+En Render, recuerda permitir el frontend:
+
+CORS_ALLOWED_ORIGINS=https://tu-frontend.vercel.app
+CSRF_TRUSTED_ORIGINS=https://tu-backend.onrender.com,https://tu-frontend.vercel.app
+
+================================================================================
+19. ERRORES COMUNES Y SOLUCIONES
+================================================================================
+
+--------------------------------------------------------------------------------
+19.1 Error: DisallowedHost
+--------------------------------------------------------------------------------
+
+Mensaje típico:
+
+Invalid HTTP_HOST header: 'tu-backend.onrender.com'.
+You may need to add 'tu-backend.onrender.com' to ALLOWED_HOSTS.
+
+Solución:
+
+En Render:
+
+DJANGO_ALLOWED_HOSTS=tu-backend.onrender.com
+
+Sin https://.
+
+Correcto:
+
+DJANGO_ALLOWED_HOSTS=promomania-backend.onrender.com
+
+Incorrecto:
+
+DJANGO_ALLOWED_HOSTS=https://promomania-backend.onrender.com
+
+--------------------------------------------------------------------------------
+19.2 Error: CSRF verification failed
+--------------------------------------------------------------------------------
+
+Solución:
+
+Agrega en Render:
+
+CSRF_TRUSTED_ORIGINS=https://tu-backend.onrender.com
+
+Si tienes frontend:
+
+CSRF_TRUSTED_ORIGINS=https://tu-backend.onrender.com,https://tu-frontend.vercel.app
+
+--------------------------------------------------------------------------------
+19.3 Error: CORS blocked
+--------------------------------------------------------------------------------
+
+Mensaje típico en navegador:
+
+Access to fetch at ... has been blocked by CORS policy
+
+Solución:
+
+En producción:
+
+CORS_ALLOW_ALL_ORIGINS=False
+CORS_ALLOWED_ORIGINS=https://tu-frontend.vercel.app
+
+Para prueba rápida, temporalmente:
+
+CORS_ALLOW_ALL_ORIGINS=True
+
+Pero no lo dejes así como configuración final.
+
+--------------------------------------------------------------------------------
+19.4 Admin sin estilos
+--------------------------------------------------------------------------------
+
+Problema:
+
+Entras a /admin/ pero aparece sin CSS.
+
+Solución:
+
+Verifica:
+
+1. En MIDDLEWARE:
+
+'whitenoise.middleware.WhiteNoiseMiddleware'
+
+2. En STATIC:
+
+STATIC_URL = '/static/'
+STATIC_ROOT = BASE_DIR / 'staticfiles'
+
+3. En STORAGES:
+
+STORAGES = {
+    "default": {
+        "BACKEND": "django.core.files.storage.FileSystemStorage",
+    },
+    "staticfiles": {
+        "BACKEND": "whitenoise.storage.CompressedManifestStaticFilesStorage",
+    },
+}
+
+4. En entrypoint.sh:
+
+python manage.py collectstatic --noinput
+
+--------------------------------------------------------------------------------
+19.5 Error conectando a base de datos
+--------------------------------------------------------------------------------
+
+Revisa:
+
+1. En local:
+
+DB_HOST=db
+DB_PORT=5432
+DB_NAME=mypostgresdb
+DB_USER=postgres
+DB_PASSWORD=mysecretpassword
+
+2. En producción:
+
+DATABASE_URL=postgresql://usuario:password@host.neon.tech/dbname?sslmode=require
+
+3. En settings.py debe existir:
+
+DATABASE_URL = os.getenv("DATABASE_URL")
+
+if DATABASE_URL:
+    DATABASES = {
+        "default": dj_database_url.config(
+            default=DATABASE_URL,
+            conn_max_age=600,
+            ssl_require=True,
+        )
+    }
+
+4. La cadena de Neon debe tener:
+
+sslmode=require
+
+--------------------------------------------------------------------------------
+19.6 Error: no such table
+--------------------------------------------------------------------------------
+
+Significa que no se han aplicado migraciones.
+
+Solución:
+
+En local:
+
+docker compose exec backend python manage.py migrate
+
+En producción:
+
+El entrypoint.sh debe tener:
+
+python manage.py migrate
+
+--------------------------------------------------------------------------------
+19.7 Error: ModuleNotFoundError: No module named 'backprom'
+--------------------------------------------------------------------------------
+
+Causas posibles:
+
+1. El Dockerfile no está copiando correctamente la carpeta backend.
+2. WORKDIR incorrecto.
+3. El comando Gunicorn apunta a otro nombre.
+
+Solución:
+
+Verifica que exista:
+
+backend/backprom/wsgi.py
+
+Y que entrypoint.sh tenga:
+
+gunicorn backprom.wsgi:application
+
+--------------------------------------------------------------------------------
+19.8 Error: exec /app/entrypoint.sh: permission denied
+--------------------------------------------------------------------------------
+
+Solución:
+
+En Dockerfile debe existir:
+
+RUN chmod +x /app/entrypoint.sh
+
+También puedes ejecutar localmente:
+
+git update-index --chmod=+x backend/entrypoint.sh
+
+--------------------------------------------------------------------------------
+19.9 Error por saltos de línea de Windows
+--------------------------------------------------------------------------------
+
+Si entrypoint.sh fue creado en Windows, puede tener CRLF y fallar.
+
+Mensaje típico:
+
+/bin/sh^M: bad interpreter
+
+Solución:
+
+Convierte el archivo a LF.
+
+En VSCode:
+1. Abre entrypoint.sh.
+2. Abajo a la derecha cambia CRLF por LF.
+3. Guarda.
+
+--------------------------------------------------------------------------------
+19.10 Render tarda en abrir
+--------------------------------------------------------------------------------
+
+En planes gratuitos, el servicio puede dormir después de un tiempo sin uso.
+La primera petición puede tardar más.
+
+No es error de Django.
+
+================================================================================
+20. CHECKLIST FINAL ANTES DEL DEPLOY
+================================================================================
+
+Antes de subir a Render, verifica:
+
+[ ] El proyecto funciona localmente con docker compose up --build.
+[ ] http://localhost:8001 abre correctamente.
+[ ] http://localhost:8001/admin/ abre correctamente.
+[ ] python manage.py check no muestra errores.
+[ ] requirements.txt contiene gunicorn, whitenoise, dj-database-url y psycopg.
+[ ] settings.py usa DATABASE_URL si existe.
+[ ] settings.py tiene WhiteNoise.
+[ ] DEBUG por defecto está en False.
+[ ] ALLOWED_HOSTS por defecto no es ['*'].
+[ ] CORS_ALLOW_ALL_ORIGINS por defecto no es True en producción.
+[ ] entrypoint.sh existe.
+[ ] backend.Dockerfile existe.
+[ ] .env no se sube a GitHub.
+[ ] DATABASE_URL real no se sube a GitHub.
+[ ] La base de datos de Neon está creada.
+[ ] Las variables de entorno están en Render.
+[ ] El Dockerfile Path en Render es backend.Dockerfile.
+[ ] Gunicorn apunta a backprom.wsgi:application.
+
+================================================================================
+21. ORDEN EXACTO RECOMENDADO
+================================================================================
+
+Hazlo en este orden:
+
+1. Ajusta requirements.txt.
+2. Ajusta settings.py.
+3. Crea backend/entrypoint.sh.
+4. Ajusta backend.Dockerfile.
+5. Crea .dockerignore.
+6. Ajusta .gitignore.
+7. Prueba local:
+
+   docker compose up --build
+
+8. Verifica:
+
+   http://localhost:8001
+   http://localhost:8001/admin/
+
+9. Ejecuta:
+
+   docker compose exec backend python manage.py check
+   docker compose exec backend python manage.py migrate
+
+10. Crea base de datos en Neon.
+11. Copia DATABASE_URL.
+12. Sube proyecto a GitHub.
+13. Crea Web Service Docker en Render.
+14. Configura Dockerfile Path:
+
+   backend.Dockerfile
+
+15. Agrega variables de entorno en Render.
+16. Lanza deploy.
+17. Revisa logs.
+18. Prueba:
+
+   https://tu-backend.onrender.com/admin/
+
+19. Crea superusuario.
+20. Conecta frontend si existe.
+
+================================================================================
+22. PROMPT PARA USAR CON IA O CODEX
+================================================================================
+
+Puedes copiar este prompt cuando quieras que una IA revise y edite tu proyecto:
+
+Necesito preparar mi backend Django llamado backprom para desplegarlo gratis en Render usando Docker, y usar PostgreSQL en Neon como base de datos de producción.
+
+Mi estructura esperada es:
+
+- docker-compose.yml en la raíz para desarrollo local.
+- backend.Dockerfile en la raíz.
+- backend/manage.py.
+- backend/backprom/settings.py.
+- backend/backprom/wsgi.py.
+- backend/requirements.txt.
+- backend/entrypoint.sh.
+
+Quiero que hagas lo siguiente:
+
+1. Mantener docker-compose.yml para desarrollo local con PostgreSQL local.
+2. Configurar settings.py para que use DATABASE_URL si existe, y si no existe use DB_HOST, DB_PORT, DB_USER, DB_PASSWORD y DB_NAME.
+3. Configurar DJANGO_SECRET_KEY, DJANGO_DEBUG, DJANGO_ALLOWED_HOSTS, CORS_ALLOWED_ORIGINS y CSRF_TRUSTED_ORIGINS mediante variables de entorno.
+4. Cambiar DEBUG para que por defecto sea False.
+5. Cambiar ALLOWED_HOSTS para que por defecto no sea ['*'].
+6. Cambiar CORS_ALLOW_ALL_ORIGINS para que no quede True en producción.
+7. Agregar WhiteNoise a MIDDLEWARE.
+8. Configurar STATIC_URL, STATIC_ROOT y STORAGES para que funcione el admin de Django en producción.
+9. Revisar requirements.txt e incluir gunicorn, whitenoise, dj-database-url y psycopg[binary].
+10. Crear o corregir backend/entrypoint.sh para ejecutar collectstatic, migrate y luego gunicorn backprom.wsgi:application.
+11. Crear o corregir backend.Dockerfile para construir el backend desde la carpeta backend.
+12. Crear .dockerignore y revisar .gitignore para no subir .env ni secretos.
+13. No cambiar la lógica de negocio, modelos, serializers ni views si no es necesario.
+14. Explicarme los cambios realizados y los comandos para probar localmente y desplegar en Render.
+
+Variables de producción esperadas en Render:
+
+DATABASE_URL=postgresql://usuario:password@host.neon.tech/dbname?sslmode=require
+DJANGO_SECRET_KEY=clave_segura
+DJANGO_DEBUG=False
+DJANGO_ALLOWED_HOSTS=tu-backend.onrender.com
+CORS_ALLOW_ALL_ORIGINS=False
+CORS_ALLOWED_ORIGINS=https://tu-frontend.vercel.app
+CORS_ALLOW_CREDENTIALS=True
+CSRF_TRUSTED_ORIGINS=https://tu-backend.onrender.com,https://tu-frontend.vercel.app
+DJANGO_TIME_ZONE=America/Bogota
+PYTHONUNBUFFERED=1
+
+================================================================================
+23. NOTAS FINALES
+================================================================================
+
+1. Tu docker-compose.yml no está mal.
+   Sirve para desarrollo local.
+
+2. Para internet gratis, no intentes subir PostgreSQL dentro de Docker Compose.
+   Usa Neon para la base de datos.
+
+3. Render debe ejecutar solo el contenedor del backend.
+
+4. En producción no uses:
+   DEBUG=True
+   ALLOWED_HOSTS=['*']
+   CORS_ALLOW_ALL_ORIGINS=True
+
+5. La variable más importante para producción es:
+
+   DATABASE_URL
+
+6. Tu backend usa:
+
+   backprom.wsgi.application
+
+   Por eso Gunicorn debe usar:
+
+   gunicorn backprom.wsgi:application
+
+7. Si el admin se ve sin estilos, casi siempre es problema de:
+   WhiteNoise
+   collectstatic
+   STATIC_ROOT
+   STORAGES
+
+8. Si aparece DisallowedHost, casi siempre es:
+   DJANGO_ALLOWED_HOSTS mal configurado.
+
+9. Si aparece CORS, casi siempre es:
+   CORS_ALLOWED_ORIGINS mal configurado.
+
+10. Si aparece error de tablas, casi siempre faltó:
+    python manage.py migrate
+
+================================================================================
+24. FUENTES CONSULTADAS PARA ESTAS INSTRUCCIONES
+================================================================================
+
+- Render Docker documentation:
+  https://render.com/docs/docker
+
+- Render Django deployment guide:
+  https://render.com/docs/deploy-django
+
+- Render Web Services documentation:
+  https://render.com/docs/web-services
+
+- Render Multi-service architecture / PORT recommendation:
+  https://render.com/docs/multi-service-architecture
+
+- Neon pricing:
+  https://neon.com/pricing
+
+- Neon plans documentation:
+  https://neon.com/docs/introduction/plans
+
+- Django deployment documentation:
+  https://docs.djangoproject.com/en/6.0/howto/deployment/
+
+- Django settings documentation:
+  https://docs.djangoproject.com/en/6.0/ref/settings/
+
+- WhiteNoise Django documentation:
+  https://whitenoise.readthedocs.io/en/stable/django.html

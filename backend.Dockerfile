@@ -32,15 +32,11 @@ RUN pip install --upgrade pip && \
 # Copiar código del backend
 COPY backend/ .
 
+# Dar permisos al entrypoint
+RUN chmod +x /app/entrypoint.sh
+
 # Exponer puerto Django
 EXPOSE 8000
 
-# Script de inicio con espera de base de datos, migraciones y carga de datos
-CMD sh -c 'until pg_isready -h ${DB_HOST} -p ${DB_PORT} -U ${DB_USER}; do \
-      echo "Waiting for database..."; \
-      sleep 2; \
-    done && \
-    echo "Database is ready!" && \
-    python manage.py migrate --fake-initial --noinput && \
-    python manage.py seed_all && \
-    python manage.py runserver 0.0.0.0:8000'
+# Comando por defecto para producción (Render usará este)
+CMD ["/app/entrypoint.sh"]
