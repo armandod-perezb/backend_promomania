@@ -76,6 +76,7 @@ class Command(BaseCommand):
 
     def seed_usuarios(self):
         from usuario.models import Usuario
+        from django.contrib.auth.hashers import make_password
         data = self.load_json('usuarios.json')
         if not data:
             return 0
@@ -86,7 +87,7 @@ class Command(BaseCommand):
                 defaults={
                     'nombre': item['nombre'],
                     'correo': item['correo'],
-                    'password': item['password'],
+                    'password': make_password(item['password']),
                     'ciudad': item.get('ciudad'),
                     'nivel': item.get('nivel'),
                     'puntuacion': item.get('puntuacion'),
