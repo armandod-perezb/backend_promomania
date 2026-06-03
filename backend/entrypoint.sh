@@ -7,6 +7,9 @@ python manage.py collectstatic --noinput
 echo "Aplicando migraciones..."
 python manage.py migrate
 
+echo "Cargando seeders..."
+python manage.py seed
+
 echo "Creando usuario admin de Django..."
 python manage.py create_admin
 

@@ -71,6 +71,7 @@ services:
       done &&
       echo "Database is ready!" &&
       python manage.py migrate --noinput &&
+      python manage.py seed &&
       python manage.py create_admin &&
       python manage.py runserver 0.0.0.0:8000'
     depends_on:
