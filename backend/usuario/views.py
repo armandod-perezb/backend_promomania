@@ -21,9 +21,14 @@ class UsuarioViewSet(BaseModelViewSet):
     serializer_class = UsuarioSerializer
 
     def get_permissions(self):
+        # Permitir registro sin autenticación
         if self.action == 'create':
             return [AllowAny()]
-        return super().get_permissions()
+        # Permitir lectura pública (list, retrieve)
+        if self.action in ('list', 'retrieve'):
+            return [AllowAny()]
+        # Resto de acciones requieren autenticación
+        return [IsAuthenticated()]
 
 
 class AuthLoginView(APIView):

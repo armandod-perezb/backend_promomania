@@ -7,6 +7,12 @@ python manage.py collectstatic --noinput
 echo "Aplicando migraciones..."
 python manage.py migrate
 
+echo "Cargando seeders..."
+python manage.py seed
+
+echo "Creando usuario admin de Django..."
+python manage.py create_admin
+
 echo "Iniciando Gunicorn..."
 gunicorn backprom.wsgi:application \
   --bind 0.0.0.0:${PORT:-8000} \
