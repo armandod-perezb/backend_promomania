@@ -21,8 +21,8 @@ class Command(BaseCommand):
                     "correo": item.get("correo", "").strip().lower(),
                     "password": make_password(item.get("password", "")),
                     "ciudad": item.get("ciudad"),
-                    "nivel": item.get("nivel"),
-                    "puntuacion": item.get("puntuacion"),
+                    "nivel": item.get("nivel", 1),
+                    "puntuacion": item.get("puntuacion", 0),
                     "rol": item.get("rol", "usuario"),
                     "estado": item.get("estado", "activo"),
                 }

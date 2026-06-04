@@ -1,4 +1,5 @@
 from core.views import BaseModelViewSet
+from django.db import transaction
 
 from .models import Promocion, PromocionHorario, TipoPromocion
 from .serializers import PromocionHorarioSerializer, PromocionSerializer, TipoPromocionSerializer
@@ -6,6 +7,7 @@ from .services import PromocionQueryService
 
 
 promocion_query_service = PromocionQueryService()
+PUNTOS_POR_PROMOCION_APROBADA = 100
 
 
 class TipoPromocionViewSet(BaseModelViewSet):
@@ -34,6 +36,23 @@ class PromocionViewSet(BaseModelViewSet):
             usuario_id=int(usuario_id) if usuario_id and usuario_id.isdigit() else None,
             term=query_params.get('q'),
         )
+
+    @transaction.atomic
+    def perform_update(self, serializer):
+        promocion = serializer.save()
+
+        if promocion.estado != 'aprobada' or promocion.puntuacion_otorgada:
+            return
+
+        usuario = promocion.id_usuario
+        if usuario.rol != 'usuario':
+            return
+
+        usuario.agregar_puntuacion(PUNTOS_POR_PROMOCION_APROBADA)
+        usuario.save(update_fields=['puntuacion', 'nivel', 'updated_at'])
+
+        promocion.puntuacion_otorgada = True
+        promocion.save(update_fields=['puntuacion_otorgada', 'updated_at'])
 
 
 class PromocionHorarioViewSet(BaseModelViewSet):
